@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title></title>
+        <script src="secrets.js"></script>
+        <script src="trello-auth.js"></script>
+        <script>
+            function main() {
+                var auth = new TrelloAuth();
+                auth.ensureAuthorized(secret.trelloApiKey);
+
+                var api = new TrelloApi(auth);
+
+                var boardSelect = document.querySelector("#boards");
+                api.boards({
+                    filter: 'open',
+                    fields: 'id,name,dateLastView'
+                })
+                .then(resp => resp.json())
+                .then(boards => {
+                    boards.sort((a,b) => new Date(b.dateLastView) - new Date(a.dateLastView))
+                    var options = boards
+                        .map(board => fragments.option(board.id, board.name))
+                        .reduce((fragment, option) => fragment.appendChild(option) && fragment,
+                                document.createDocumentFragment());
+                    boardSelect.appendChild(options);
+                });
+            }
+            var fragments = {
+                option: (value, text) => {
+                    var option = document.createElement("option");
+                    option.value = value;
+                    option.textContent = text;
+                    return option;
+                },
+            }
+            class TrelloApi
+            {
+                constructor(auth) {
+                    this.auth = auth;
+                }
+                url(resource, options) {
+                    var query_string = Object.keys(options)
+                                             .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(options[k]))
+                                             .join('&');
+                    resource += "?" + query_string;
+                    return `https://api.trello.com/1/${resource}&key=${this.auth.key}&token=${this.auth.token}`;
+                }
+                boards(options) {
+                    return fetch(this.url('members/me/boards', options));
+                }
+            }
+            window.addEventListener("load", main);
+        
+        </script>
+    </head>
+    <body>
+        <select id="boards">
+        </select>
+    </body>
+</html>
