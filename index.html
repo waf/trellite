@@ -3,6 +3,44 @@
     <head>
         <meta charset="UTF-8">
         <title></title>
+        <style>
+            html, body {
+                font-family:sans-serif;
+                margin:0;
+                padding:0;
+                height:100%;
+            }
+            nav {
+                margin:2px;
+            }
+            nav .boards {
+                padding:2px;
+            }
+            #lists {
+                white-space:nowrap;
+            }
+            .list {
+                white-space:normal;
+                width:100px;
+                background-color:#ccc;
+                padding:2px;
+                margin:2px;
+                overflow-y:auto;
+                display:inline-block;
+                vertical-align:top;
+            }
+            .list h2 {
+                font-size: 10pt;
+            }
+            .card {
+                background-color:#fff;
+                font-size:10pt;
+                margin:2px;
+                padding:2px;
+                word-wrap:break-word;
+            }
+
+        </style>
         <script src="secrets.js"></script>
         <script src="trello-auth.js"></script>
         <script>
@@ -13,20 +51,70 @@
                 var api = new TrelloApi(auth);
 
                 var boardSelect = document.querySelector("#boards");
+                var listContainer = document.querySelector("#lists");
+
+                boardSelect.addEventListener('change', e => {
+                    var boardId = e.target.value;
+                    api.lists(boardId, {
+                        fields: 'id,name',
+                        cards: 'open',
+                        card_fields: 'name'
+                    })
+                    .then(resp => resp.json())
+                    .then(lists => render.lists(listContainer, lists));
+                });
+
                 api.boards({
                     filter: 'open',
                     fields: 'id,name,dateLastView'
                 })
                 .then(resp => resp.json())
                 .then(boards => {
-                    boards.sort((a,b) => new Date(b.dateLastView) - new Date(a.dateLastView))
+                    boards.sort((a,b) => new Date(b.dateLastView) - new Date(a.dateLastView));
+                    render.boardSelect(boardSelect, boards);
+                    boardSelect.dispatchEvent(new Event('change'));
+                })
+            }
+
+            var render = {
+                boardSelect: (select, boards) => {
                     var options = boards
                         .map(board => fragments.option(board.id, board.name))
                         .reduce((fragment, option) => fragment.appendChild(option) && fragment,
                                 document.createDocumentFragment());
-                    boardSelect.appendChild(options);
-                });
-            }
+                    select.appendChild(options);
+                },
+                lists: (container, lists) => {
+                    var listElements = lists.map(list => {
+                        listElement = document.createElement("div");
+                        listElement.className = "list";
+                        listElement.dataset.id = list.id;
+
+                        title = document.createElement("h2");
+                        title.textContent = list.name;
+                        listElement.appendChild(title);
+
+                        var cards = render.cards(list.cards)
+                        listElement.appendChild(cards);
+                        return listElement;
+                    })
+                    .reduce((fragment, list) => fragment.appendChild(list) && fragment,
+                            document.createDocumentFragment());
+
+                    container.appendChild(listElements);
+                },
+                cards: (cards) => {
+                    return cards.map(card => {
+                        var cardElement = document.createElement("div");
+                        cardElement.className = "card";
+                        cardElement.dataset.id = card.id;
+                        cardElement.textContent = card.name;
+                        return cardElement;
+                    })
+                    .reduce((fragment, card) => fragment.appendChild(card) && fragment,
+                            document.createDocumentFragment());
+                }
+            };
             var fragments = {
                 option: (value, text) => {
                     var option = document.createElement("option");
@@ -41,7 +129,7 @@
                     this.auth = auth;
                 }
                 url(resource, options) {
-                    var query_string = Object.keys(options)
+                    var query_string = Object.keys(options || {})
                                              .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(options[k]))
                                              .join('&');
                     resource += "?" + query_string;
@@ -50,13 +138,21 @@
                 boards(options) {
                     return fetch(this.url('members/me/boards', options));
                 }
+                lists(boardId, options) {
+                    return fetch(this.url(`boards/${boardId}/lists`, options));
+                }
             }
             window.addEventListener("load", main);
         
         </script>
     </head>
     <body>
-        <select id="boards">
-        </select>
+        <nav>
+            <select id="boards">
+            </select>
+            <input type="search" placeholder="search" />
+        </nav>
+        <div id="lists">
+        </div>
     </body>
 </html>
